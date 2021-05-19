@@ -1,0 +1,140 @@
+{
+    "schemaVersion": "0.3",
+    "description": "Encrypt RDS Instance Automation Document",
+    "assumeRole": "{{automationAssumeRole}}",
+    "parameters": {
+        "DBInstanceIdentifier": {
+            "description": "(Required) The DBInstanceId ID of the RDS Instance to create Snapshot from.",
+            "type": "String"
+        },
+        "EncryptedDBInstanceIdentifier": {
+            "description": "(Optional, default provided) The name of the id of the target encrypted DB Instance to create",
+            "default": "encrypted-{{DBInstanceIdentifier}}",
+            "type": "String"
+        },
+        "EncryptedDBSnapshotIdentifier": {
+            "description": "(Optional, default provided) The DBSnapshotIdentifier ID of the Encrypted RDS snapshot to create.",
+            "default": "encrypted-db-instance-snapshot-{{DBInstanceIdentifier}}",
+            "type": "String"
+        },
+        "kmsKeyId": {
+            "description": "(Required) Customer KMS key to use during the encryption",
+            "type": "String"
+        },
+        "automationAssumeRole": {
+            "type": "String",
+            "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+        }
+    },
+    "mainSteps": [
+        {
+            "name": "createAndVerifySnapshot",
+            "action": "aws:executeAutomation",
+            "timeoutSeconds": 1800,
+            "onFailure": "step:deleteSnapshot",
+            "nextStep": "copyToEncryptedSnapshot",
+            "maxAttempts": 3,
+            "inputs": {
+                "DocumentName": "AWS-CreateRdsSnapshot",
+                "RuntimeParameters": {
+                    "DBInstanceIdentifier": "{{DBInstanceIdentifier}}",
+                    "DBSnapshotIdentifier": "unencrypted-{{EncryptedDBSnapshotIdentifier}}",
+                    "AutomationAssumeRole": "{{automationAssumeRole}}"
+                }
+            }
+        },
+        {
+            "name": "copyToEncryptedSnapshot",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "step:deleteEncryptedSnapshot",
+            "nextStep": "waitForEncryptedSnapshot",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "CopyDBSnapshot",
+                "KmsKeyId": "{{kmsKeyId}}",
+                "TargetDBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}",
+                "SourceDBSnapshotIdentifier": "unencrypted-{{EncryptedDBSnapshotIdentifier}}"
+            }
+        },
+        {
+            "name": "waitForEncryptedSnapshot",
+            "action": "aws:waitForAwsResourceProperty",
+            "timeoutSeconds": 1800,
+            "onFailure": "step:deleteEncryptedSnapshot",
+            "nextStep": "createEncryptedRDSInstanceFromSnapshot",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBSnapshots",
+                "DBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}",
+                "PropertySelector": "$.DBSnapshots[0].Status",
+                "DesiredValues": [
+                    "available"
+                ]
+            }
+        },
+        {
+            "name": "createEncryptedRDSInstanceFromSnapshot",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "step:deleteEncryptedSnapshot",
+            "nextStep": "waitForEncryptedRDSInstance",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "RestoreDBInstanceFromDBSnapshot",
+                "DBInstanceIdentifier": "{{EncryptedDBInstanceIdentifier}}",
+                "DBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}",
+                "MultiAZ": true
+            }
+        },
+        {
+            "name": "waitForEncryptedRDSInstance",
+            "action": "aws:waitForAwsResourceProperty",
+            "timeoutSeconds": 1200,
+            "onFailure": "step:deleteEncryptedSnapshot",
+            "nextStep": "deleteEncryptedSnapshot",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBInstances",
+                "DBInstanceIdentifier": "{{EncryptedDBInstanceIdentifier}}",
+                "PropertySelector": "$.DBInstances[0].DBInstanceStatus",
+                "DesiredValues": [
+                    "available"
+                ]
+            }
+        },
+        {
+            "name": "deleteEncryptedSnapshot",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "Continue",
+            "nextStep": "deleteSnapshot",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DeleteDBSnapshot",
+                "DBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}"
+            }
+        },
+        {
+            "name": "deleteSnapshot",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "Continue",
+            "isEnd": true,
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DeleteDBSnapshot",
+                "DBSnapshotIdentifier": "unencrypted-{{EncryptedDBSnapshotIdentifier}}"
+            }
+        }
+    ],
+    "outputs": [
+        "createAndVerifySnapshot.Output"
+    ]
+}

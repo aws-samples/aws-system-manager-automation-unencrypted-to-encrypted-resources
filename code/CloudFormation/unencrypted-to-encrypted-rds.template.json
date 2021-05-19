@@ -1,0 +1,1132 @@
+{
+  "Description": "This sample, non-production-ready template create a config remediation rule to create encrypted RDS instances and clusters using the specific CMK.",
+  "Resources": {
+    "EncryptRDSAutomationRoleB6031D59": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ssm.amazonaws.com",
+                  "rds.amazonaws.com"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Ref": "EncryptRDSAutomationRolepolicy5A97FD3E"
+          }
+        ]
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/EncryptRDSAutomationRole/Resource"
+      }
+    },
+    "EncryptRDSAutomationRoleDefaultPolicyC9DEFBD9": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "iam:PassRole",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "EncryptRDSAutomationRoleB6031D59",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "EncryptRDSAutomationRoleDefaultPolicyC9DEFBD9",
+        "Roles": [
+          {
+            "Ref": "EncryptRDSAutomationRoleB6031D59"
+          }
+        ]
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/EncryptRDSAutomationRole/DefaultPolicy/Resource"
+      }
+    },
+    "rdsencryptionkeyA4CDBAAA": {
+      "Type": "AWS::KMS::Key",
+      "Properties": {
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": [
+                "kms:Create*",
+                "kms:Describe*",
+                "kms:Enable*",
+                "kms:List*",
+                "kms:Put*",
+                "kms:Update*",
+                "kms:Revoke*",
+                "kms:Disable*",
+                "kms:Get*",
+                "kms:Delete*",
+                "kms:ScheduleKeyDeletion",
+                "kms:CancelKeyDeletion",
+                "kms:GenerateDataKey",
+                "kms:TagResource",
+                "kms:UntagResource"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "EnableKeyRotation": true
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain",
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/rds-encryption-key/Resource"
+      }
+    },
+    "rdsencryptionkeyAliasF994D841": {
+      "Type": "AWS::KMS::Alias",
+      "Properties": {
+        "AliasName": "alias/RDSEncryptionAtRestCMKAlias",
+        "TargetKeyId": {
+          "Fn::GetAtt": [
+            "rdsencryptionkeyA4CDBAAA",
+            "Arn"
+          ]
+        }
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/rds-encryption-key/Alias/Resource"
+      }
+    },
+    "EncryptRDSAutomationRolepolicy5A97FD3E": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "ec2:DescribeAvailabilityZones",
+                "ec2:DescribeInternetGateways",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeVpcAttribute",
+                "ec2:DescribeVpcs",
+                "rds:AddTagsToResource",
+                "ssm:GetAutomationExecution"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:CreateGrant",
+                "kms:DescribeKey"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:kms:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":key/",
+                    {
+                      "Ref": "rdsencryptionkeyA4CDBAAA"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": [
+                "rds:CreateDBClusterSnapshot",
+                "rds:DeleteDBClusterSnapshot",
+                "rds:DescribeDBClusterSnapshots",
+                "rds:RestoreDBClusterFromSnapshot"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:rds:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":cluster-snapshot:*"
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": [
+                "rds:CreateDBClusterSnapshot",
+                "rds:DescribeDBClusters",
+                "rds:RestoreDBClusterFromSnapshot"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:rds:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":cluster:*"
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": [
+                "rds:CreateDBInstance",
+                "rds:CreateDBSnapshot",
+                "rds:DescribeDBInstances",
+                "rds:RestoreDBInstanceFromDBSnapshot"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:rds:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":db:*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:rds:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":cluster:*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "rds:CreateDBInstance",
+                "rds:RestoreDBClusterFromSnapshot",
+                "rds:RestoreDBInstanceFromDBSnapshot"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:rds:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":og:*"
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": "rds:CreateDBInstance",
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:rds:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":secgrp:*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:rds:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":pg:*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "rds:CopyDBSnapshot",
+                "rds:CreateDBSnapshot",
+                "rds:DeleteDBSnapshot",
+                "rds:DescribeDBSnapshots",
+                "rds:RestoreDBInstanceFromDBSnapshot"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:rds:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":snapshot:*"
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": [
+                "rds:CreateDBInstance",
+                "rds:RestoreDBInstanceFromDBSnapshot"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:rds:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":subgrp:*"
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": "ssm:StartAutomationExecution",
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Description": "Permissions for the RDS encrypt unencrypted",
+        "Path": "/"
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/EncryptRDSAutomationRole-policy/Resource"
+      }
+    },
+    "ENCRYPTunencryptedrdscluster": {
+      "Type": "AWS::SSM::Document",
+      "Properties": {
+        "Content": {
+          "schemaVersion": "0.3",
+          "description": "Encrypt RDS Cluster Automation Document",
+          "assumeRole": "{{automationAssumeRole}}",
+          "parameters": {
+            "DBInstanceClass": {
+              "description": "(Required) The compute and memory capacity of the DB instance, for example, db.m4.large.",
+              "type": "String"
+            },
+            "SourceDBClusterIdentifier": {
+              "description": "(Required) The DB Cluster Identifier of the RDS Cluster to create Snapshot from.",
+              "type": "String"
+            },
+            "EncryptedDBClusterIdentifier": {
+              "description": "(Optional, default provided) The name of the id of the target encrypted DB Instance to create",
+              "default": "encrypted-{{SourceDBClusterIdentifier}}",
+              "type": "String"
+            },
+            "DBClusterSnapshotIdentifier": {
+              "description": "(Optional, default provided) The Encrypted DBClusterSnapshotIdentifier ID of the RDS snapshot to create.",
+              "default": "unencrypted-db-cluster-snapshot-{{SourceDBClusterIdentifier}}",
+              "type": "String"
+            },
+            "kmsKeyId": {
+              "description": "(Required) Customer KMS key to use during the encryption",
+              "type": "String"
+            },
+            "automationAssumeRole": {
+              "type": "String",
+              "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+            }
+          },
+          "mainSteps": [
+            {
+              "name": "createRDSClusterSnapshot",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "step:deleteSnapshotCluster",
+              "nextStep": "waitForSnapshot",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "CreateDBClusterSnapshot",
+                "DBClusterIdentifier": "{{SourceDBClusterIdentifier}}",
+                "DBClusterSnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}"
+              },
+              "outputs": [
+                {
+                  "Name": "engine",
+                  "Selector": "$.DBClusterSnapshot.Engine",
+                  "Type": "String"
+                }
+              ]
+            },
+            {
+              "name": "waitForSnapshot",
+              "action": "aws:waitForAwsResourceProperty",
+              "timeoutSeconds": 1800,
+              "onFailure": "Abort",
+              "nextStep": "createEncryptedRDSClusterFromSnapshot",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBClusterSnapshots",
+                "DBClusterSnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}",
+                "PropertySelector": "$.DBClusterSnapshots[0].Status",
+                "DesiredValues": [
+                  "available"
+                ]
+              }
+            },
+            {
+              "name": "createEncryptedRDSClusterFromSnapshot",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "step:deleteSnapshotCluster",
+              "nextStep": "waitForEncryptedRDSCluster",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "RestoreDBClusterFromSnapshot",
+                "DBClusterIdentifier": "{{EncryptedDBClusterIdentifier}}",
+                "SnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}",
+                "Engine": "{{createRDSClusterSnapshot.engine}}",
+                "KmsKeyId": "{{kmsKeyId}}"
+              }
+            },
+            {
+              "name": "waitForEncryptedRDSCluster",
+              "action": "aws:waitForAwsResourceProperty",
+              "timeoutSeconds": 1200,
+              "onFailure": "step:deleteSnapshotCluster",
+              "nextStep": "createEncryptedRDSInstanceInCluster",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBClusters",
+                "DBClusterIdentifier": "{{EncryptedDBClusterIdentifier}}",
+                "PropertySelector": "$.DBClusters[0].Status",
+                "DesiredValues": [
+                  "available"
+                ]
+              }
+            },
+            {
+              "name": "createEncryptedRDSInstanceInCluster",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "step:deleteSnapshotCluster",
+              "nextStep": "waitForEncryptedRDSInstance",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "CreateDBInstance",
+                "DBClusterIdentifier": "{{EncryptedDBClusterIdentifier}}",
+                "DBInstanceIdentifier": "instance-1-{{EncryptedDBClusterIdentifier}}",
+                "DBInstanceClass": "{{DBInstanceClass}}",
+                "Engine": "{{createRDSClusterSnapshot.engine}}"
+              }
+            },
+            {
+              "name": "waitForEncryptedRDSInstance",
+              "action": "aws:waitForAwsResourceProperty",
+              "timeoutSeconds": 1200,
+              "onFailure": "step:deleteSnapshotCluster",
+              "nextStep": "deleteSnapshotCluster",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBInstances",
+                "DBInstanceIdentifier": "instance-1-{{EncryptedDBClusterIdentifier}}",
+                "PropertySelector": "$.DBInstances[0].DBInstanceStatus",
+                "DesiredValues": [
+                  "available"
+                ]
+              }
+            },
+            {
+              "name": "deleteSnapshotCluster",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "Abort",
+              "isEnd": true,
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DeleteDBClusterSnapshot",
+                "DBClusterSnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}"
+              }
+            }
+          ]
+        },
+        "DocumentType": "Automation"
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/ENCRYPT-unencryptedrdscluster"
+      }
+    },
+    "ENCRYPTunencryptedrdsinstance": {
+      "Type": "AWS::SSM::Document",
+      "Properties": {
+        "Content": {
+          "schemaVersion": "0.3",
+          "description": "Encrypt RDS Instance Automation Document",
+          "assumeRole": "{{automationAssumeRole}}",
+          "parameters": {
+            "DBInstanceIdentifier": {
+              "description": "(Required) The DBInstanceId ID of the RDS Instance to create Snapshot from.",
+              "type": "String"
+            },
+            "EncryptedDBInstanceIdentifier": {
+              "description": "(Optional, default provided) The name of the id of the target encrypted DB Instance to create",
+              "default": "encrypted-{{DBInstanceIdentifier}}",
+              "type": "String"
+            },
+            "EncryptedDBSnapshotIdentifier": {
+              "description": "(Optional, default provided) The DBSnapshotIdentifier ID of the Encrypted RDS snapshot to create.",
+              "default": "encrypted-db-instance-snapshot-{{DBInstanceIdentifier}}",
+              "type": "String"
+            },
+            "kmsKeyId": {
+              "description": "(Required) Customer KMS key to use during the encryption",
+              "type": "String"
+            },
+            "automationAssumeRole": {
+              "type": "String",
+              "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+            }
+          },
+          "mainSteps": [
+            {
+              "name": "createAndVerifySnapshot",
+              "action": "aws:executeAutomation",
+              "timeoutSeconds": 1800,
+              "onFailure": "step:deleteSnapshot",
+              "nextStep": "copyToEncryptedSnapshot",
+              "maxAttempts": 3,
+              "inputs": {
+                "DocumentName": "AWS-CreateRdsSnapshot",
+                "RuntimeParameters": {
+                  "DBInstanceIdentifier": "{{DBInstanceIdentifier}}",
+                  "DBSnapshotIdentifier": "unencrypted-{{EncryptedDBSnapshotIdentifier}}",
+                  "AutomationAssumeRole": "{{automationAssumeRole}}"
+                }
+              }
+            },
+            {
+              "name": "copyToEncryptedSnapshot",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "step:deleteEncryptedSnapshot",
+              "nextStep": "waitForEncryptedSnapshot",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "CopyDBSnapshot",
+                "KmsKeyId": "{{kmsKeyId}}",
+                "TargetDBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}",
+                "SourceDBSnapshotIdentifier": "unencrypted-{{EncryptedDBSnapshotIdentifier}}"
+              }
+            },
+            {
+              "name": "waitForEncryptedSnapshot",
+              "action": "aws:waitForAwsResourceProperty",
+              "timeoutSeconds": 1800,
+              "onFailure": "step:deleteEncryptedSnapshot",
+              "nextStep": "createEncryptedRDSInstanceFromSnapshot",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBSnapshots",
+                "DBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}",
+                "PropertySelector": "$.DBSnapshots[0].Status",
+                "DesiredValues": [
+                  "available"
+                ]
+              }
+            },
+            {
+              "name": "createEncryptedRDSInstanceFromSnapshot",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "step:deleteEncryptedSnapshot",
+              "nextStep": "waitForEncryptedRDSInstance",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "RestoreDBInstanceFromDBSnapshot",
+                "DBInstanceIdentifier": "{{EncryptedDBInstanceIdentifier}}",
+                "DBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}",
+                "MultiAZ": true
+              }
+            },
+            {
+              "name": "waitForEncryptedRDSInstance",
+              "action": "aws:waitForAwsResourceProperty",
+              "timeoutSeconds": 1200,
+              "onFailure": "step:deleteEncryptedSnapshot",
+              "nextStep": "deleteEncryptedSnapshot",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBInstances",
+                "DBInstanceIdentifier": "{{EncryptedDBInstanceIdentifier}}",
+                "PropertySelector": "$.DBInstances[0].DBInstanceStatus",
+                "DesiredValues": [
+                  "available"
+                ]
+              }
+            },
+            {
+              "name": "deleteEncryptedSnapshot",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "Continue",
+              "nextStep": "deleteSnapshot",
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DeleteDBSnapshot",
+                "DBSnapshotIdentifier": "{{EncryptedDBSnapshotIdentifier}}"
+              }
+            },
+            {
+              "name": "deleteSnapshot",
+              "action": "aws:executeAwsApi",
+              "timeoutSeconds": 300,
+              "onFailure": "Continue",
+              "isEnd": true,
+              "maxAttempts": 1,
+              "inputs": {
+                "Service": "rds",
+                "Api": "DeleteDBSnapshot",
+                "DBSnapshotIdentifier": "unencrypted-{{EncryptedDBSnapshotIdentifier}}"
+              }
+            }
+          ],
+          "outputs": [
+            "createAndVerifySnapshot.Output"
+          ]
+        },
+        "DocumentType": "Automation"
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/ENCRYPT-unencryptedrdsinstance"
+      }
+    },
+    "ENCRYPTunencryptedrds": {
+      "Type": "AWS::SSM::Document",
+      "Properties": {
+        "Content": {
+          "schemaVersion": "0.3",
+          "description": "Encrypt RDS Automation Document",
+          "assumeRole": "{{automationAssumeRole}}",
+          "parameters": {
+            "instanceAutomationDocument": {
+              "description": "(Required) Document Id of the RDS instance encryption automation",
+              "type": "String"
+            },
+            "clusterAutomationDocument": {
+              "description": "(Required) Document Id of the RDS cluster encryption automation",
+              "type": "String"
+            },
+            "resourceId": {
+              "description": "(Required) RDS Instance Id of the resource to be remediated",
+              "type": "String"
+            },
+            "kmsKeyId": {
+              "description": "(Required) Customer KMS key to use during the encryption",
+              "type": "String"
+            },
+            "automationAssumeRole": {
+              "type": "String",
+              "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+            }
+          },
+          "mainSteps": [
+            {
+              "name": "determineInstanceOrCluster",
+              "action": "aws:executeScript",
+              "description": "Determines whether the instance is a standalone or part of a cluster",
+              "timeoutSeconds": 300,
+              "onFailure": "Abort",
+              "nextStep": "chooseInstanceOrCluster",
+              "maxAttempts": 1,
+              "outputs": [
+                {
+                  "Name": "InstanceClass",
+                  "Selector": "$.Payload.instance_class",
+                  "Type": "String"
+                },
+                {
+                  "Name": "IsCluster",
+                  "Selector": "$.Payload.is_cluster",
+                  "Type": "Boolean"
+                },
+                {
+                  "Name": "ClusterId",
+                  "Selector": "$.Payload.cluster_id",
+                  "Type": "String"
+                },
+                {
+                  "Name": "DBInstanceIdentifier",
+                  "Selector": "$.Payload.db_instance_id",
+                  "Type": "String"
+                }
+              ],
+              "inputs": {
+                "Runtime": "python3.6",
+                "Handler": "handler",
+                "InputPayload": {
+                  "DBResourceIdentifier": "{{resourceId}}"
+                },
+                "Script": "import boto3\n\nDB_RESOURCE_ID = \"DBResourceIdentifier\"\n\ndef handler(event, context):\n    rds = boto3.client('rds')\n\n    resource_id = event[DB_RESOURCE_ID]\n    result=rds.describe_db_instances(\n      Filters=[\n          {\n              'Name': 'dbi-resource-id',\n              'Values': [\n                resource_id\n              ]\n          },\n      ],\n    )\n\n    info=result[\"DBInstances\"][0]\n    instance_class=info[\"DBInstanceClass\"]\n    db_instance_id=info[\"DBInstanceIdentifier\"]\n    is_cluster=False\n    cluster_id=\"\"\n    if \"DBClusterIdentifier\" in info:\n      is_cluster=True\n      cluster_id=info[\"DBClusterIdentifier\"]\n\n    found= {\n      'db_instance_id': db_instance_id,\n      'instance_class' : instance_class,\n      'cluster_id': cluster_id,\n      'is_cluster': is_cluster\n    }\n    return(found)"
+              }
+            },
+            {
+              "name": "chooseInstanceOrCluster",
+              "action": "aws:branch",
+              "description": "Branch to Instance or Cluster automation",
+              "timeoutSeconds": 300,
+              "onFailure": "Abort",
+              "isEnd": true,
+              "maxAttempts": 1,
+              "inputs": {
+                "Choices": [
+                  {
+                    "NextStep": "rdsInstanceEncryptionAutomation",
+                    "Variable": "{{determineInstanceOrCluster.IsCluster}}",
+                    "BooleanEquals": false
+                  },
+                  {
+                    "NextStep": "rdsClusterEncryptionAutomation",
+                    "Variable": "{{determineInstanceOrCluster.IsCluster}}",
+                    "BooleanEquals": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "rdsClusterEncryptionAutomation",
+              "action": "aws:executeAutomation",
+              "timeoutSeconds": 1800,
+              "onFailure": "Abort",
+              "isEnd": true,
+              "maxAttempts": 1,
+              "inputs": {
+                "DocumentName": "{{clusterAutomationDocument}}",
+                "RuntimeParameters": {
+                  "DBInstanceClass": [
+                    "{{determineInstanceOrCluster.InstanceClass}}"
+                  ],
+                  "SourceDBClusterIdentifier": [
+                    "{{determineInstanceOrCluster.ClusterId}}"
+                  ],
+                  "kmsKeyId": [
+                    "{{kmsKeyId}}"
+                  ],
+                  "automationAssumeRole": [
+                    "{{automationAssumeRole}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "rdsInstanceEncryptionAutomation",
+              "action": "aws:executeAutomation",
+              "timeoutSeconds": 1800,
+              "onFailure": "Abort",
+              "isEnd": true,
+              "maxAttempts": 1,
+              "inputs": {
+                "DocumentName": "{{instanceAutomationDocument}}",
+                "RuntimeParameters": {
+                  "DBInstanceIdentifier": [
+                    "{{determineInstanceOrCluster.DBInstanceIdentifier}}"
+                  ],
+                  "kmsKeyId": [
+                    "{{kmsKeyId}}"
+                  ],
+                  "automationAssumeRole": [
+                    "{{automationAssumeRole}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "DocumentType": "Automation"
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/ENCRYPT-unencryptedrds"
+      }
+    },
+    "rdsstorageencryptedwithremediation6018FF11": {
+      "Type": "AWS::Config::ConfigRule",
+      "Properties": {
+        "Source": {
+          "Owner": "AWS",
+          "SourceIdentifier": "RDS_STORAGE_ENCRYPTED"
+        },
+        "ConfigRuleName": "rds-storage-encrypted-with-remediation",
+        "Description": "Checks whether storage encryption is enabled for your RDS DB instances."
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/rds-storage-encrypted-with-remediation/Resource"
+      }
+    },
+    "EncryptRDSConfigRemediation": {
+      "Type": "AWS::Config::RemediationConfiguration",
+      "Properties": {
+        "ConfigRuleName": "rds-storage-encrypted-with-remediation",
+        "TargetId": {
+          "Ref": "ENCRYPTunencryptedrds"
+        },
+        "TargetType": "SSM_DOCUMENT",
+        "Automatic": false,
+        "Parameters": {
+          "instanceAutomationDocument": {
+            "StaticValue": {
+              "Values": [
+                {
+                  "Ref": "ENCRYPTunencryptedrdsinstance"
+                }
+              ]
+            }
+          },
+          "clusterAutomationDocument": {
+            "StaticValue": {
+              "Values": [
+                {
+                  "Ref": "ENCRYPTunencryptedrdscluster"
+                }
+              ]
+            }
+          },
+          "automationAssumeRole": {
+            "StaticValue": {
+              "Values": [
+                {
+                  "Fn::GetAtt": [
+                    "EncryptRDSAutomationRoleB6031D59",
+                    "Arn"
+                  ]
+                }
+              ]
+            }
+          },
+          "kmsKeyId": {
+            "StaticValue": {
+              "Values": [
+                {
+                  "Ref": "rdsencryptionkeyA4CDBAAA"
+                }
+              ]
+            }
+          },
+          "resourceId": {
+            "ResourceValue": {
+              "Value": "RESOURCE_ID"
+            }
+          }
+        },
+        "ResourceType": "AWS::RDS::DBInstance",
+        "TargetVersion": "1"
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/EncryptRDSConfigRemediation"
+      }
+    },
+    "CDKMetadata": {
+      "Type": "AWS::CDK::Metadata",
+      "Properties": {
+        "Analytics": "v2:deflate64:H4sIAAAAAAAAE1WPzQrCMBCEn8V7urZ48qboTQSJTxDSta5tspAfRELe3SZaxNPMN8Muux10bQvtaqeevtH9uE6aHUK6BqVHcWDrg4s6iMPNSvQcncbi56KnQGyzKIOJlIEkeapl1QtPpF8Fv+6srBqw/+V/QRaj8ZBOWKsi+4mUL1BNFt4bmOnIOhq0QWi2NxogfdfIOC2XzfFCEg32pMqlnyK6CjlncXmFO9v1Brbz/w9P1LhoAxkE+dE3jk0bHRwBAAA="
+      },
+      "Metadata": {
+        "aws:cdk:path": "unencrypted-to-encrypted-rds/CDKMetadata/Default"
+      },
+      "Condition": "CDKMetadataAvailable"
+    }
+  },
+  "Conditions": {
+    "CDKMetadataAvailable": {
+      "Fn::Or": [
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "af-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-northeast-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-northeast-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-southeast-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-southeast-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ca-central-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "cn-north-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "cn-northwest-1"
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-central-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-north-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-3"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "me-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "sa-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-east-2"
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-west-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-west-2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

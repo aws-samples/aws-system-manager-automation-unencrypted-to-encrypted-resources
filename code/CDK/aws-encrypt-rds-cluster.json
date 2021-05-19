@@ -1,0 +1,152 @@
+{
+    "schemaVersion": "0.3",
+    "description": "Encrypt RDS Cluster Automation Document",
+    "assumeRole": "{{automationAssumeRole}}",
+    "parameters": {
+        "DBInstanceClass": {
+            "description": "(Required) The compute and memory capacity of the DB instance, for example, db.m4.large.",
+            "type": "String"
+        },
+        "SourceDBClusterIdentifier": {
+            "description": "(Required) The DB Cluster Identifier of the RDS Cluster to create Snapshot from.",
+            "type": "String"
+        },
+        "EncryptedDBClusterIdentifier": {
+            "description": "(Optional, default provided) The name of the id of the target encrypted DB Instance to create",
+            "default": "encrypted-{{SourceDBClusterIdentifier}}",
+            "type": "String"
+        },
+        "DBClusterSnapshotIdentifier": {
+            "description": "(Optional, default provided) The Encrypted DBClusterSnapshotIdentifier ID of the RDS snapshot to create.",
+            "default": "unencrypted-db-cluster-snapshot-{{SourceDBClusterIdentifier}}",
+            "type": "String"
+        },
+        "kmsKeyId": {
+            "description": "(Required) Customer KMS key to use during the encryption",
+            "type": "String"
+        },
+        "automationAssumeRole": {
+            "type": "String",
+            "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+        }
+    },
+    "mainSteps": [
+        {
+            "name": "createRDSClusterSnapshot",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "step:deleteSnapshotCluster",
+            "nextStep": "waitForSnapshot",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "CreateDBClusterSnapshot",
+                "DBClusterIdentifier": "{{SourceDBClusterIdentifier}}",
+                "DBClusterSnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}"
+            },
+            "outputs": [
+                {
+                    "Name": "engine",
+                    "Selector": "$.DBClusterSnapshot.Engine",
+                    "Type": "String"
+                }
+            ]
+        },
+        {
+            "name": "waitForSnapshot",
+            "action": "aws:waitForAwsResourceProperty",
+            "timeoutSeconds": 1800,
+            "onFailure": "Abort",
+            "nextStep": "createEncryptedRDSClusterFromSnapshot",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBClusterSnapshots",
+                "DBClusterSnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}",
+                "PropertySelector": "$.DBClusterSnapshots[0].Status",
+                "DesiredValues": [
+                    "available"
+                ]
+            }
+        },
+        {
+            "name": "createEncryptedRDSClusterFromSnapshot",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "step:deleteSnapshotCluster",
+            "nextStep": "waitForEncryptedRDSCluster",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "RestoreDBClusterFromSnapshot",
+                "DBClusterIdentifier": "{{EncryptedDBClusterIdentifier}}",
+                "SnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}",
+                "Engine": "{{createRDSClusterSnapshot.engine}}",
+                "KmsKeyId": "{{kmsKeyId}}"
+            }
+        },
+        {
+            "name": "waitForEncryptedRDSCluster",
+            "action": "aws:waitForAwsResourceProperty",
+            "timeoutSeconds": 1200,
+            "onFailure": "step:deleteSnapshotCluster",
+            "nextStep": "createEncryptedRDSInstanceInCluster",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBClusters",
+                "DBClusterIdentifier": "{{EncryptedDBClusterIdentifier}}",
+                "PropertySelector": "$.DBClusters[0].Status",
+                "DesiredValues": [
+                    "available"
+                ]
+            }
+        },
+        {
+            "name": "createEncryptedRDSInstanceInCluster",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "step:deleteSnapshotCluster",
+            "nextStep": "waitForEncryptedRDSInstance",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "CreateDBInstance",
+                "DBClusterIdentifier": "{{EncryptedDBClusterIdentifier}}",
+                "DBInstanceIdentifier": "instance-1-{{EncryptedDBClusterIdentifier}}",
+                "DBInstanceClass": "{{DBInstanceClass}}",
+                "Engine": "{{createRDSClusterSnapshot.engine}}"
+            }
+        },
+        {
+            "name": "waitForEncryptedRDSInstance",
+            "action": "aws:waitForAwsResourceProperty",
+            "timeoutSeconds": 1200,
+            "onFailure": "step:deleteSnapshotCluster",
+            "nextStep": "deleteSnapshotCluster",
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DescribeDBInstances",
+                "DBInstanceIdentifier": "instance-1-{{EncryptedDBClusterIdentifier}}",
+                "PropertySelector": "$.DBInstances[0].DBInstanceStatus",
+                "DesiredValues": [
+                    "available"
+                ]
+            }
+        },
+        {
+            "name": "deleteSnapshotCluster",
+            "action": "aws:executeAwsApi",
+            "timeoutSeconds": 300,
+            "onFailure": "Abort",
+            "isEnd": true,
+            "maxAttempts": 1,
+            "inputs": {
+                "Service": "rds",
+                "Api": "DeleteDBClusterSnapshot",
+                "DBClusterSnapshotIdentifier": "{{DBClusterSnapshotIdentifier}}"
+            }
+        }
+    ]
+}

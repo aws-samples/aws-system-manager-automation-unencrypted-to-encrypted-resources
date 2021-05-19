@@ -1,0 +1,138 @@
+{
+    "schemaVersion": "0.3",
+    "description": "Encrypt RDS Automation Document",
+    "assumeRole": "{{automationAssumeRole}}",
+    "parameters": {
+        "instanceAutomationDocument": {
+            "description": "(Required) Document Id of the RDS instance encryption automation",
+            "type": "String"
+        },
+        "clusterAutomationDocument": {
+            "description": "(Required) Document Id of the RDS cluster encryption automation",
+            "type": "String"
+        },
+        "resourceId": {
+            "description": "(Required) RDS Instance Id of the resource to be remediated",
+            "type": "String"
+        },
+        "kmsKeyId": {
+            "description": "(Required) Customer KMS key to use during the encryption",
+            "type": "String"
+        },
+        "automationAssumeRole": {
+            "type": "String",
+            "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+        }
+    },
+    "mainSteps": [
+        {
+            "name": "determineInstanceOrCluster",
+            "action": "aws:executeScript",
+            "description": "Determines whether the instance is a standalone or part of a cluster",
+            "timeoutSeconds": 300,
+            "onFailure": "Abort",
+            "nextStep": "chooseInstanceOrCluster",
+            "maxAttempts": 1,
+            "outputs": [
+                {
+                    "Name": "InstanceClass",
+                    "Selector": "$.Payload.instance_class",
+                    "Type": "String"
+                },
+                {
+                    "Name": "IsCluster",
+                    "Selector": "$.Payload.is_cluster",
+                    "Type": "Boolean"
+                },
+                {
+                    "Name": "ClusterId",
+                    "Selector": "$.Payload.cluster_id",
+                    "Type": "String"
+                },
+                {
+                    "Name": "DBInstanceIdentifier",
+                    "Selector": "$.Payload.db_instance_id",
+                    "Type": "String"
+                }
+            ],
+            "inputs": {
+                "Runtime": "python3.6",
+                "Handler": "handler",
+                "InputPayload": {
+                    "DBResourceIdentifier": "{{resourceId}}"
+                },
+                "Script": "import boto3\n\nDB_RESOURCE_ID = \"DBResourceIdentifier\"\n\ndef handler(event, context):\n    rds = boto3.client('rds')\n\n    resource_id = event[DB_RESOURCE_ID]\n    result=rds.describe_db_instances(\n      Filters=[\n          {\n              'Name': 'dbi-resource-id',\n              'Values': [\n                resource_id\n              ]\n          },\n      ],\n    )\n\n    info=result[\"DBInstances\"][0]\n    instance_class=info[\"DBInstanceClass\"]\n    db_instance_id=info[\"DBInstanceIdentifier\"]\n    is_cluster=False\n    cluster_id=\"\"\n    if \"DBClusterIdentifier\" in info:\n      is_cluster=True\n      cluster_id=info[\"DBClusterIdentifier\"]\n\n    found= {\n      'db_instance_id': db_instance_id,\n      'instance_class' : instance_class,\n      'cluster_id': cluster_id,\n      'is_cluster': is_cluster\n    }\n    return(found)"
+            }
+        },
+        {
+            "name": "chooseInstanceOrCluster",
+            "action": "aws:branch",
+            "description": "Branch to Instance or Cluster automation",
+            "timeoutSeconds": 300,
+            "onFailure": "Abort",
+            "isEnd": true,
+            "maxAttempts": 1,
+            "inputs": {
+                "Choices": [
+                    {
+                        "NextStep": "rdsInstanceEncryptionAutomation",
+                        "Variable": "{{determineInstanceOrCluster.IsCluster}}",
+                        "BooleanEquals": false
+                    },
+                    {
+                        "NextStep": "rdsClusterEncryptionAutomation",
+                        "Variable": "{{determineInstanceOrCluster.IsCluster}}",
+                        "BooleanEquals": true
+                    }
+                ]
+            }
+        },
+        {
+            "name": "rdsClusterEncryptionAutomation",
+            "action": "aws:executeAutomation",
+            "timeoutSeconds": 1800,
+            "onFailure": "Abort",
+            "isEnd": true,
+            "maxAttempts": 1,
+            "inputs": {
+                "DocumentName": "{{clusterAutomationDocument}}",
+                "RuntimeParameters": {
+                    "DBInstanceClass": [
+                        "{{determineInstanceOrCluster.InstanceClass}}"
+                    ],
+                    "SourceDBClusterIdentifier": [
+                        "{{determineInstanceOrCluster.ClusterId}}"
+                    ],
+                    "kmsKeyId": [
+                        "{{kmsKeyId}}"
+                    ],
+                    "automationAssumeRole": [
+                        "{{automationAssumeRole}}"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "rdsInstanceEncryptionAutomation",
+            "action": "aws:executeAutomation",
+            "timeoutSeconds": 1800,
+            "onFailure": "Abort",
+            "isEnd": true,
+            "maxAttempts": 1,
+            "inputs": {
+                "DocumentName": "{{instanceAutomationDocument}}",
+                "RuntimeParameters": {
+                    "DBInstanceIdentifier": [
+                        "{{determineInstanceOrCluster.DBInstanceIdentifier}}"
+                    ],
+                    "kmsKeyId": [
+                        "{{kmsKeyId}}"
+                    ],
+                    "automationAssumeRole": [
+                        "{{automationAssumeRole}}"
+                    ]
+                }
+            }
+        }
+    ]
+}

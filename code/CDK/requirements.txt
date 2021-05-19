@@ -1,0 +1,5 @@
+aws-cdk.aws-iam==1.100.0
+aws-cdk.aws-ssm==1.100.0
+aws-cdk.aws-config==1.100.0
+aws-cdk.aws-kms==1.100.0
+aws-cdk.aws-rds==1.100.0
