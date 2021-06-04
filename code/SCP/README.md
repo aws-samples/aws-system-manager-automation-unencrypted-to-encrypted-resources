@@ -1,6 +1,6 @@
 Prerequisites:
 
-Access to AWS services, including:
+1. Access to AWS services, including:
     1. AWS Config
     2. AWS RDS
     3. AWS System Manager Automation Document
