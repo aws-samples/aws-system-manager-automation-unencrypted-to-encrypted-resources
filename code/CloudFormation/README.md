@@ -1,10 +1,6 @@
 Prerequisites:
 
-1. An active AWS account
-2. The CMK key should already exist to encrypt RDS Instances and Clusters
-3. Plesae ensure you have access to update KMS CMK Resource policy
-4. An unencrypted Amazon RDS DB instance or Clusters
-5. Access to AWS services, including:
+1. Access to AWS services, including:
     1. AWS Config
     2. AWS RDS
     3. AWS System Manager Automation Document
