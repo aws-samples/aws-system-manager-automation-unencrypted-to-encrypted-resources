@@ -8,7 +8,7 @@ Prerequisites:
     5. AWS CDK (Option #2)
     6. AWS Key Management Service (KMS) 
     7. AWS Identity and Access Management (IAM)
-    8. You must have AWS Config enabled in your AWS account. For more information, see Getting Started with AWS Config.
+    8. You must have AWS Config enabled in your AWS account. For more information, see [Getting Started with AWS Config](https://docs.aws.amazon.com/config/latest/developerguide/getting-started.html)
 
 Limitations:
 
