@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates the IAM Role and KMS CMK for the EBS Encryption Remediation Process
+Parameters: 
+  KeyAdminParameter:
+    Description: ARN of Key Admin IAM User or Role
+    Type: String
+Resources: 
+  EncryptionRemediationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ssm.amazonaws.com
+                - Fn::Join:
+                    - ""
+                    - - ec2.
+                      - Ref: AWS::URLSuffix
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AmazonSSMAutomationRole
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AWSLambda_FullAccess
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/IAMFullAccess
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AmazonEC2FullAccess
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AmazonSSMFullAccess
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action: tag:TagResources
+                Effect: Allow
+                Resource: "*"
+            Version: "2012-10-17"
+          PolicyName: tag
+  EBSEncryptionCMK:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: CMK used for encryption EBS volumes
+      Enabled: True
+      EnableKeyRotation: True
+      KeyPolicy: 
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+          Action: kms:*
+          Resource: '*'
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS: !Ref KeyAdminParameter
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            AWS: !GetAtt EncryptionRemediationRole.Arn
+          Action:
+          - kms:DescribeKey
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey
+          - kms:GenerateDataKeyWithoutPlaintext
+          Resource: '*'
+  EBSEncryptionCMKAlias:
+    Type: AWS::KMS::Alias
+    Properties: 
+      AliasName: alias/EC2EncryptionAtRestCMKAlias
+      TargetKeyId: !Ref EBSEncryptionCMK
+Outputs:
+  RoleARN:
+    Description: ARN of the EncryptionRemediationRole
+    Value: !GetAtt EncryptionRemediationRole.Arn
+    Export: 
+      Name: !Sub "${AWS::StackName}-RoleARN"
+  CMKID:
+    Description: Key ID of EBSEncryptionCMK
+    Value: !Ref EBSEncryptionCMK
+    Export: 
+      Name: !Sub "${AWS::StackName}-CMKID"
