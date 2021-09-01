@@ -4,11 +4,11 @@ This sample describes how to automatically remediate unencrypted RDS Instances a
 
 ## Deployment Options
 
-The sample solution can be deployed using the AWS CloudFormation stack or AWS Cloud Development Kit (AWS CDK), which create remediation using Systems Manger Automation Document (SSM) that will unencrypted RDS instances and clusters by using the specific Customer master keys (CMK) if not initially encrypted when created.
+The sample solution can be deployed using the AWS CloudFormation stack or AWS Cloud Development Kit (AWS CDK), which create remediation using Systems Manger Automation Document (SSM) that will unencrypted RDS instances and clusters by using the specific Customer master keys (KMS key) if not initially encrypted when created.
  
-* Option # 1: Deploy the [CloudFormation](CloudFormation) which will create the Remediation Rule that will encrypt the unencrypted RDS Instances and Clusters using your CMK key.
+* Option # 1: Deploy the [CloudFormation](CloudFormation) which will create the Remediation Rule that will encrypt the unencrypted RDS Instances and Clusters using your KMS key.
 
-* Option # 2: Deploy the [AWS Cloud Development Kit AWS CDK](CDK) which will create the Remediation Rule that will encrypt the unencrypted RDS Instances and Clusters using your CMK key. The CDK option also allows you to deploy a test stack, if you desire to evaluate running the remediation on an example RDS scenario.
+* Option # 2: Deploy the [AWS Cloud Development Kit AWS CDK](CDK) which will create the Remediation Rule that will encrypt the unencrypted RDS Instances and Clusters using your KMS key. The CDK option also allows you to deploy a test stack, if you desire to evaluate running the remediation on an example RDS scenario.
 
 ## Enforce Service Control Policies
 
