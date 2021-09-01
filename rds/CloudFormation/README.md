@@ -18,13 +18,13 @@ Limitations:
 
 3. You can't restore an unencrypted backup or snapshot to an encrypted DB instance. Amazon RDS encryption is available for most DB instance classes. The following table lists DB instance classes that do not support [Amazon RDS encryption](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.Encryption.html)
 
-4. To copy an encrypted snapshot from one AWS Region to another, you must specify the CMK in the destination AWS Region. This is because CMKs are specific to the AWS Region that they are created in.
+4. To copy an encrypted snapshot from one AWS Region to another, you must specify the KMS key in the destination AWS Region. This is because KMS keys are specific to the AWS Region that they are created in.
 
 5. The source snapshot remains encrypted throughout the copy process. Amazon RDS uses envelope encryption to protect data during the copy process. For more information about envelope encryption, see Envelope encryption in the AWS Key Management Service Developer Guide.
 
 6. You can't unencrypt an encrypted DB instance. However, you can export data from an encrypted DB instance and import the data into an unencrypted DB instance.
 
-7. You should delete a CMK only when you are sure that you don't need to use it anymore. If you are not sure, consider disabling the CMK instead of deleting it. You can reenable a disabled CMK if you need to use it again later, but you cannot recover a deleted CMK.
+7. You should delete a KMS key only when you are sure that you don't need to use it anymore. If you are not sure, consider disabling the KMS key instead of deleting it. You can reenable a disabled KMS key if you need to use it again later, but you cannot recover a deleted KMS key.
 
 8. If you don't choose to retain automated backups, your automated backups in the same AWS Region as the DB instance are deleted. They can't be recovered after you delete the DB instance.
 
