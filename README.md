@@ -1,6 +1,6 @@
 # Automatically remediate unencrypted resources
 
-These samples describe how to automatically remediate uenencrypted resources such as RDS and EBS volumes.
+These samples describe how to automatically remediate uenencrypted resources such as RDS.
 
 ## Automatically remediate unencrypted RDS Instances and Clusters using customer master keys
 
