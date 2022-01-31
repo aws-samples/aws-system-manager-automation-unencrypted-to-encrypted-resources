@@ -1,5 +1,5 @@
+Description: This sample, non-production-ready template creates the IAM Role and KMS Key for the EBS Encryption Remediation Process
 AWSTemplateFormatVersion: 2010-09-09
-Description: Creates the IAM Role and KMS Key for the EBS Encryption Remediation Process
 Parameters: 
   KeyAdminParameter:
     Description: ARN of Key Admin IAM User or Role
