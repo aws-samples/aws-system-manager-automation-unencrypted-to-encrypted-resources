@@ -1,0 +1,13 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [{
+        "Effect": "Deny",
+        "Action": ["ec2:CreateVolume", "ec2:RunInstances"],
+        "Resource": "*",
+        "Condition": {
+            "Bool": {
+                "ec2:Encrypted": "false"
+            }
+        }
+    }]
+}
