@@ -5,6 +5,71 @@ Parameters:
     Description: ARN of Key Admin IAM User or Role
     Type: String
 Resources: 
+  EncryptionRemediationPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: EncryptEBSAutomationRole-policy
+      Roles:
+       - !Ref EncryptionRemediationRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:DescribeStacks
+              - cloudformation:DeleteStack
+            Resource:
+              - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/DetachEBSVolumeStack*'
+              - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/AttachEBSVolumeStack*'
+          - Effect: Allow
+            Action:
+              - ec2:AttachVolume
+              - ec2:CopySnapshot
+              - ec2:CreateSnapshot
+              - ec2:CreateVolume
+              - ec2:CreateTags
+              - ec2:DeleteSnapshot
+              - ec2:DeleteVolume
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeSnapshots
+              - ec2:DescribeVolumes
+              - ec2:DescribeVolumes
+              - ec2:ModifyInstanceAttribute
+              - ec2:StartInstances
+              - ec2:StopInstances
+              - tag:TagResources
+              - ssm:GetAutomationExecution
+              - ssm:StartAutomationExecution
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - lambda:DeleteFunction
+              - lambda:CreateFunction
+              - lambda:GetFunction*
+              - lambda:InvokeFunction
+            Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function/DetachVolumeLambda*'
+          - Effect: Allow
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:DescribeKey
+            Resource: !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${EBSEncryptionKey.KeyId}'
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+              - iam:DeleteRole
+              - iam:PutRolePolicy*
+              - iam:CreateRole
+              - iam:GetRole*
+              - iam:DeleteRolePolicy
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/DetachEBSVolumeStack*LambdaRole*'
   EncryptionRemediationRole:
     Type: AWS::IAM::Role
     Properties:
@@ -15,45 +80,8 @@ Resources:
             Principal:
               Service:
                 - ssm.amazonaws.com
-                - Fn::Join:
-                    - ""
-                    - - ec2.
-                      - Ref: AWS::URLSuffix
+                - ec2.amazonaws.com
         Version: "2012-10-17"
-      ManagedPolicyArns:
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/service-role/AmazonSSMAutomationRole
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/AWSLambda_FullAccess
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/IAMFullAccess
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/AmazonEC2FullAccess
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/AmazonSSMFullAccess
-      Policies:
-        - PolicyDocument:
-            Statement:
-              - Action: tag:TagResources
-                Effect: Allow
-                Resource: "*"
-            Version: "2012-10-17"
-          PolicyName: tag
   EBSEncryptionKey:
     Type: AWS::KMS::Key
     Properties: 
