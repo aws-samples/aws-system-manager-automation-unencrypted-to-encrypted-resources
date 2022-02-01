@@ -1,0 +1,389 @@
+Description: This sample, non-production-ready template create a config remediation rule to create encrypted EBS volumes using the specific Key.
+Parameters:
+  RoleKeyStackNameParameter:
+    Description: Stack Name used when creating the IAM role and KMS Key
+    Type: String
+Resources:
+  EncryptedVolumesConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties: 
+      ConfigRuleName: "encrypted-volumes"
+      Scope:
+        ComplianceResourceTypes:
+          - "AWS::EC2::Volume"
+      Description: "A Config rule that checks whether the EBS volumes that are in an attached state are encrypted."
+      Source:
+        Owner: "AWS"
+        SourceIdentifier: "ENCRYPTED_VOLUMES"
+  ENCRYPTunencryptedebsvolume:
+    Type: AWS::SSM::Document
+    Properties:
+      Content:
+        schemaVersion: "0.3"
+        description: Encrypt EBS Volume Automation Document
+        assumeRole: "{{automationAssumeRole}}"
+        parameters:
+          volumeId:
+            description: (Required) Volume ID of the EBS volume attached to an ec2 instance whose volume needs to be encrypted
+            type: String
+          kmsKeyId:
+            description: (Required) Customer KMS key to use during the encryption
+            type: String
+            default: 
+              Fn::ImportValue:
+                !Sub "${RoleKeyStackNameParameter}-KeyID"
+          automationAssumeRole:
+            type: String
+            description: (Optional) The ARN of the role that allows Automation to perform the actions on your behalf.
+            default: 
+              Fn::ImportValue:
+                !Sub "${RoleKeyStackNameParameter}-RoleARN"
+        mainSteps:
+          - name: describeVolume
+            action: aws:executeAwsApi
+            timeoutSeconds: 30
+            onFailure: Abort
+            nextStep: describeInstance
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: DescribeVolumes
+              VolumeIds:
+                - "{{volumeId}}"
+            outputs:
+              - Name: instanceId
+                Selector: $.Volumes[0].Attachments[0].InstanceId
+                Type: String
+              - Name: availabilityZone
+                Selector: $.Volumes[0].AvailabilityZone
+                Type: String
+              - Name: deviceVolumeType
+                Selector: $.Volumes[0].VolumeType
+                Type: String
+              - Name: deleteOnTermination
+                Selector: $.Volumes[0].Attachments[0].DeleteOnTermination
+                Type: Boolean
+              - Name: deviceMount
+                Selector: $.Volumes[0].Attachments[0].Device
+                Type: String
+          - name: describeInstance
+            action: aws:executeAwsApi
+            timeoutSeconds: 30
+            onFailure: Abort
+            nextStep: createSnapshot
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: DescribeInstances
+              InstanceIds:
+                - "{{describeVolume.instanceId}}"
+            outputs:
+              - Name: availabilityZone
+                Selector: $.Reservations[0].Instances[0].Placement.AvailabilityZone
+                Type: String
+              - Name: instanceState
+                Selector: $.Reservations[0].Instances[0].State.Name
+                Type: String
+          - name: createSnapshot
+            action: aws:executeAutomation
+            timeoutSeconds: 1800
+            onFailure: Abort
+            nextStep: extractSnapshotId
+            maxAttempts: 3
+            inputs:
+              DocumentName: AWS-CreateSnapshot
+              RuntimeParameters:
+                VolumeId: "{{volumeId}}"
+          - name: extractSnapshotId
+            action: aws:executeAwsApi
+            timeoutSeconds: 30
+            onFailure: step:deleteRootVolumeSnapshot
+            nextStep: copyAndEncryptSnapshot
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: DescribeSnapshots
+              SnapshotIds: "{{createSnapshot.Output}}"
+            outputs:
+              - Name: SnapshotId
+                Selector: $.Snapshots[0].SnapshotId
+                Type: String
+          - name: copyAndEncryptSnapshot
+            action: aws:executeAwsApi
+            timeoutSeconds: 3600
+            onFailure: step:deleteEncryptedRootVolumeSnapshot
+            nextStep: waitForEncryptedSnapshot
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: CopySnapshot
+              SourceSnapshotId: "{{extractSnapshotId.SnapshotId}}"
+              SourceRegion: "{{global:REGION}}"
+              Encrypted: true
+              KmsKeyId: "{{kmsKeyId}}"
+              DestinationRegion: "{{global:REGION}}"
+            outputs:
+              - Name: encryptedSnapshotId
+                Selector: $.SnapshotId
+                Type: String
+          - name: waitForEncryptedSnapshot
+            action: aws:waitForAwsResourceProperty
+            timeoutSeconds: 1800
+            onFailure: step:deleteEncryptedRootVolumeSnapshot
+            nextStep: createEncryptedVolumeFromEncryptedSnapshot
+            inputs:
+              Service: ec2
+              Api: DescribeSnapshots
+              SnapshotIds:
+                - "{{copyAndEncryptSnapshot.encryptedSnapshotId}}"
+              PropertySelector: $.Snapshots[0].State
+              DesiredValues:
+                - completed
+          - name: createEncryptedVolumeFromEncryptedSnapshot
+            action: aws:executeAwsApi
+            timeoutSeconds: 30
+            onFailure: step:deleteNewEncryptedVolume
+            nextStep: stopInstance
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: CreateVolume
+              AvailabilityZone: "{{describeInstance.availabilityZone}}"
+              Encrypted: true
+              KmsKeyId: "{{kmsKeyId}}"
+              SnapshotId: "{{copyAndEncryptSnapshot.encryptedSnapshotId}}"
+              VolumeType: "{{describeVolume.deviceVolumeType}}"
+              TagSpecifications:
+                - ResourceType: volume
+                  Tags:
+                    - Key: encrypted-clone-of-volume
+                      Value: "{{volumeId}}"
+            outputs:
+              - Name: NewRootVolumeID
+                Selector: $.VolumeId
+                Type: String
+          - name: stopInstance
+            action: aws:executeAutomation
+            timeoutSeconds: 300
+            onFailure: step:deleteNewEncryptedVolume
+            nextStep: detachEBSVolume
+            maxAttempts: 1
+            inputs:
+              DocumentName: AWS-StopEC2Instance
+              RuntimeParameters:
+                InstanceId: "{{describeVolume.instanceId}}"
+          - name: detachEBSVolume
+            action: aws:executeAutomation
+            timeoutSeconds: 300
+            onFailure: step:attachOriginalVolume
+            nextStep: attachNewEBSVolume
+            maxAttempts: 1
+            inputs:
+              DocumentName: AWS-DetachEBSVolume
+              RuntimeParameters:
+                VolumeId: "{{volumeId}}"
+          - name: attachNewEBSVolume
+            action: aws:executeAutomation
+            timeoutSeconds: 180
+            onFailure: step:detachNewVolume
+            nextStep: applyDeleteOnTerminationValue
+            maxAttempts: 1
+            inputs:
+              DocumentName: AWS-AttachEBSVolume
+              RuntimeParameters:
+                Device: "{{describeVolume.deviceMount}}"
+                InstanceId: "{{describeVolume.instanceId}}"
+                VolumeId: "{{createEncryptedVolumeFromEncryptedSnapshot.NewRootVolumeID}}"
+          - name: applyDeleteOnTerminationValue
+            action: aws:executeAwsApi
+            onFailure: step:detachNewVolume
+            nextStep: restoreInstanceInitialState
+            timeoutSeconds: 60
+            maxAttempts: 10
+            isCritical: true
+            inputs:
+              Service: ec2
+              Api: ModifyInstanceAttribute
+              InstanceId: "{{describeVolume.instanceId}}"
+              BlockDeviceMappings:
+                - DeviceName: "{{describeVolume.deviceMount}}"
+                  Ebs:
+                    DeleteOnTermination: "{{describeVolume.deleteOnTermination}}"
+          - name: restoreInstanceInitialState
+            action: aws:changeInstanceState
+            onFailure: step:detachNewVolume
+            isCritical: true
+            nextStep: markUnencryptedVolumeRemediated
+            inputs:
+              InstanceIds:
+                - "{{describeVolume.instanceId}}"
+              DesiredState: "{{describeInstance.instanceState}}"
+          - name: markUnencryptedVolumeRemediated
+            action: aws:executeAwsApi
+            timeoutSeconds: 300
+            onFailure: Continue
+            nextStep: deleteEncryptedRootVolumeSnapshot
+            maxAttempts: 1
+            inputs:
+              Service: resourcegroupstaggingapi
+              Api: TagResources
+              ResourceARNList:
+                - arn:aws:ec2:{{global:REGION}}:{{global:ACCOUNT_ID}}:volume/{{volumeId}}
+              Tags:
+                remediated: "{{createEncryptedVolumeFromEncryptedSnapshot.NewRootVolumeID}}"
+          - name: detachNewVolume
+            action: aws:executeAutomation
+            timeoutSeconds: 300
+            onFailure: Continue
+            nextStep: attachOriginalVolume
+            maxAttempts: 1
+            inputs:
+              DocumentName: AWS-DetachEBSVolume
+              RuntimeParameters:
+                VolumeId: "{{createEncryptedVolumeFromEncryptedSnapshot.NewRootVolumeID}}"
+          - name: attachOriginalVolume
+            action: aws:executeAutomation
+            timeoutSeconds: 180
+            onFailure: Continue
+            nextStep: deleteNewEncryptedVolume
+            maxAttempts: 1
+            inputs:
+              DocumentName: AWS-AttachEBSVolume
+              RuntimeParameters:
+                Device: "{{describeVolume.deviceMount}}"
+                InstanceId: "{{describeVolume.instanceId}}"
+                VolumeId: "{{volumeId}}"
+          - name: deleteNewEncryptedVolume
+            action: aws:executeAwsApi
+            timeoutSeconds: 300
+            onFailure: Continue
+            nextStep: deleteEncryptedRootVolumeSnapshot
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: DeleteVolume
+              VolumeId: "{{createEncryptedVolumeFromEncryptedSnapshot.NewRootVolumeID}}"
+          - name: deleteEncryptedRootVolumeSnapshot
+            action: aws:executeAwsApi
+            onFailure: Continue
+            nextStep: deleteRootVolumeSnapshot
+            timeoutSeconds: 300
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: DeleteSnapshot
+              SnapshotId: "{{copyAndEncryptSnapshot.encryptedSnapshotId}}"
+          - name: deleteRootVolumeSnapshot
+            action: aws:executeAwsApi
+            onFailure: Continue
+            isEnd: true
+            timeoutSeconds: 300
+            maxAttempts: 1
+            inputs:
+              Service: ec2
+              Api: DeleteSnapshot
+              SnapshotId: "{{extractSnapshotId.SnapshotId}}"
+        outputs:
+          - createEncryptedVolumeFromEncryptedSnapshot.NewRootVolumeID
+      DocumentType: Automation
+    Metadata:
+      aws:cdk:path: unencrypted-to-encrypted-ebs/ENCRYPT-unencryptedebsvolume
+  EncryptEBSVolumesConfigRemediation:
+    Type: AWS::Config::RemediationConfiguration
+    Properties:
+      ConfigRuleName: encrypted-volumes
+      TargetId:
+        Ref: ENCRYPTunencryptedebsvolume
+      TargetType: SSM_DOCUMENT
+      Automatic: false
+      Parameters:
+        automationAssumeRole:
+          StaticValue:
+            Values:
+              - Fn::ImportValue:
+                  !Sub "${RoleKeyStackNameParameter}-RoleARN"
+        kmsKeyId:
+          StaticValue:
+            Values:
+              - Fn::ImportValue:
+                  !Sub "${RoleKeyStackNameParameter}-KeyID"
+        volumeId:
+          ResourceValue:
+            Value: RESOURCE_ID
+      ResourceType: AWS::EC2::Volume
+      TargetVersion: "1"
+    DependsOn:
+      - ENCRYPTunencryptedebsvolume
+    Metadata:
+      aws:cdk:path: unencrypted-to-encrypted-ebs/EncryptEBSVolumesConfigRemediation
+  CDKMetadata:
+    Type: AWS::CDK::Metadata
+    Properties:
+      Modules: aws-cdk=1.19.0,@aws-cdk/assets=1.19.0,@aws-cdk/aws-cloudwatch=1.19.0,@aws-cdk/aws-config=1.19.0,@aws-cdk/aws-ec2=1.19.0,@aws-cdk/aws-events=1.19.0,@aws-cdk/aws-iam=1.19.0,@aws-cdk/aws-kms=1.19.0,@aws-cdk/aws-lambda=1.19.0,@aws-cdk/aws-logs=1.19.0,@aws-cdk/aws-s3=1.19.0,@aws-cdk/aws-s3-assets=1.19.0,@aws-cdk/aws-sns=1.19.0,@aws-cdk/aws-sqs=1.19.0,@aws-cdk/aws-ssm=1.19.0,@aws-cdk/core=1.19.0,@aws-cdk/cx-api=1.19.0,@aws-cdk/region-info=1.19.0,jsii-runtime=Python/3.7.4
+    Condition: CDKMetadataAvailable
+Conditions:
+  CDKMetadataAvailable:
+    Fn::Or:
+      - Fn::Or:
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ap-east-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ap-northeast-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ap-northeast-2
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ap-south-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ap-southeast-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ap-southeast-2
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - ca-central-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - cn-north-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - cn-northwest-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - eu-central-1
+      - Fn::Or:
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - eu-north-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - eu-west-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - eu-west-2
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - eu-west-3
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - me-south-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - sa-east-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - us-east-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - us-east-2
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - us-west-1
+          - Fn::Equals:
+              - Ref: AWS::Region
+              - us-west-2
+
