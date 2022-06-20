@@ -11,7 +11,7 @@
           "*"
         ],
         "Condition": {
-          "ForAnyValue:StringNotLike": {
+          "StringNotLike": {
             "rds:DatabaseEngine": "aurora*"
           },
           "Bool": {
