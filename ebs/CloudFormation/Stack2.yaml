@@ -128,7 +128,7 @@ Resources:
                 Type: String
           - name: waitForEncryptedSnapshot
             action: aws:waitForAwsResourceProperty
-            timeoutSeconds: 1800
+            timeoutSeconds: 3600
             onFailure: step:deleteEncryptedRootVolumeSnapshot
             nextStep: createEncryptedVolumeFromEncryptedSnapshot
             inputs:
