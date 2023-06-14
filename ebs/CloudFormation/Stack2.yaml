@@ -174,7 +174,7 @@ Resources:
                 InstanceId: "{{describeVolume.instanceId}}"
           - name: detachEBSVolume
             action: aws:executeAutomation
-            timeoutSeconds: 300
+            timeoutSeconds: 600
             onFailure: step:attachOriginalVolume
             nextStep: attachNewEBSVolume
             maxAttempts: 1
@@ -184,7 +184,7 @@ Resources:
                 VolumeId: "{{volumeId}}"
           - name: attachNewEBSVolume
             action: aws:executeAutomation
-            timeoutSeconds: 180
+            timeoutSeconds: 600
             onFailure: step:detachNewVolume
             nextStep: applyDeleteOnTerminationValue
             maxAttempts: 1
