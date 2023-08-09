@@ -50,7 +50,7 @@ Resources:
               - lambda:CreateFunction
               - lambda:GetFunction*
               - lambda:InvokeFunction
-            Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function/DetachVolumeLambda*'
+            Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:DetachVolumeLambda*'
           - Effect: Allow
             Action:
               - kms:Encrypt
