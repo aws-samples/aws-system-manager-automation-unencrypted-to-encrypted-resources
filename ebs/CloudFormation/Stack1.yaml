@@ -22,28 +22,76 @@ Resources:
             Resource:
               - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/DetachEBSVolumeStack*'
               - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/AttachEBSVolumeStack*'
+          # Read-only EC2 operations - can use broader scoping
           - Effect: Allow
             Action:
-              - ec2:AttachVolume
-              - ec2:CopySnapshot
-              - ec2:CreateSnapshot
-              - ec2:CreateVolume
-              - ec2:CreateTags
-              - ec2:DeleteSnapshot
-              - ec2:DeleteVolume
               - ec2:DescribeInstances
               - ec2:DescribeInstanceStatus
               - ec2:DescribeNetworkInterfaces
               - ec2:DescribeSnapshots
               - ec2:DescribeVolumes
-              - ec2:DescribeVolumes
+            Resource: '*'
+          # EC2 instance operations - scoped to instances
+          - Effect: Allow
+            Action:
+              - ec2:AttachVolume
               - ec2:ModifyInstanceAttribute
               - ec2:StartInstances
               - ec2:StopInstances
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+          # EBS volume operations - scoped to volumes
+          - Effect: Allow
+            Action:
+              - ec2:CreateVolume
+              - ec2:DeleteVolume
+              - ec2:AttachVolume
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+          # CreateVolume also needs permission on snapshots when creating from snapshot
+          - Effect: Allow
+            Action:
+              - ec2:CreateVolume
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:snapshot/*'
+              - !Sub 'arn:aws:ec2:${AWS::Region}::snapshot/*'
+          # EBS snapshot operations - scoped to snapshots
+          - Effect: Allow
+            Action:
+              - ec2:CopySnapshot
+              - ec2:CreateSnapshot
+              - ec2:DeleteSnapshot
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:snapshot/*'
+              - !Sub 'arn:aws:ec2:${AWS::Region}::snapshot/*'
+          # CreateSnapshot also needs permission on volumes
+          - Effect: Allow
+            Action:
+              - ec2:CreateSnapshot
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+          # Tagging operations - scoped to EC2 resources
+          - Effect: Allow
+            Action:
+              - ec2:CreateTags
               - tag:TagResources
+            Resource:
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+              - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:snapshot/*'
+          # SSM read-only operations
+          - Effect: Allow
+            Action:
               - ssm:GetAutomationExecution
-              - ssm:StartAutomationExecution
             Resource: '*'
+          # SSM automation operations - scoped to automation documents and executions
+          - Effect: Allow
+            Action:
+              - ssm:StartAutomationExecution
+            Resource:
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:automation-definition/*'
+              - !Sub 'arn:aws:ssm:${AWS::Region}::automation-definition/*'
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:automation-execution/*'
           - Effect: Allow
             Action:
               - lambda:DeleteFunction

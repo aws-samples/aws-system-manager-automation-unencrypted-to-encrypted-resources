@@ -1,7 +1,5 @@
-# © 2021 Amazon Web Services, Inc. or its affiliates. All Rights Reserved.
-# This AWS Content is provided subject to the terms of the AWS Customer Agreement
-# available at http://aws.amazon.com/agreement or other written agreement between
-# Customer and either Amazon Web Services, Inc. or Amazon Web Services EMEA SARL or both.
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 
 # This is sample, non-production-ready template create a config remediation rule to create encrypted RDS instances and clusters using the specific KMS key.
 
@@ -33,15 +31,16 @@
 
 import json
 
-from aws_cdk import core, aws_iam as iam, aws_ssm, aws_config, aws_kms
+from aws_cdk import Stack, Aws, CfnParameter, aws_iam as iam, aws_ssm, aws_config, aws_kms
+from constructs import Construct
 
 
-class UnencryptedToEncryptedRdsStack(core.Stack):
-    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+class UnencryptedToEncryptedRdsStack(Stack):
+    def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
         """
-        kms_key_id_param = core.CfnParameter(
+        kms_key_id_param = CfnParameter(
             self,
             "kmskeyid",
             type="String",
@@ -80,6 +79,7 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
             description="Permissions for the RDS encrypt unencrypted",
             path="/",
             statements=[
+                # Read-only operations
                 iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -89,16 +89,28 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "ec2:DescribeSubnets",
                         "ec2:DescribeVpcAttribute",
                         "ec2:DescribeVpcs",
-                        "rds:AddTagsToResource",
+                        "rds:DescribeDBInstances",
+                        "rds:DescribeDBClusters",
+                        "rds:DescribeDBSnapshots",
+                        "rds:DescribeDBClusterSnapshots",
                         "ssm:GetAutomationExecution",
                     ],
                     resources=["*"],
+                ),
+                # Tagging operations - scoped to RDS resources
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=["rds:AddTagsToResource"],
+                    resources=[
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:db:*",
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:cluster:*",
+                    ],
                 ),
                 iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=["kms:CreateGrant", "kms:DescribeKey"],
                     resources=[
-                        f"arn:aws:kms:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:key/{rds_key.key_id}"
+                        f"arn:aws:kms:{Aws.REGION}:{Aws.ACCOUNT_ID}:key/{rds_key.key_id}"
                     ],
                 ),
                 iam.PolicyStatement(
@@ -110,7 +122,7 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "rds:RestoreDBClusterFromSnapshot",
                     ],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:cluster-snapshot:*"
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:cluster-snapshot:*"
                     ],
                 ),
                 iam.PolicyStatement(
@@ -121,7 +133,7 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "rds:RestoreDBClusterFromSnapshot",
                     ],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:cluster:*"
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:cluster:*"
                     ],
                 ),
                 iam.PolicyStatement(
@@ -133,8 +145,8 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "rds:RestoreDBInstanceFromDBSnapshot",
                     ],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:db:*",
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:cluster:*",
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:db:*",
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:cluster:*",
                     ],
                 ),
                 iam.PolicyStatement(
@@ -145,15 +157,15 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "rds:RestoreDBInstanceFromDBSnapshot",
                     ],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:og:*"
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:og:*"
                     ],
                 ),
                 iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=["rds:CreateDBInstance"],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:secgrp:*",
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:pg:*",
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:secgrp:*",
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:pg:*",
                     ],
                 ),
                 iam.PolicyStatement(
@@ -166,7 +178,7 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "rds:RestoreDBInstanceFromDBSnapshot",
                     ],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:snapshot:*"
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:snapshot:*"
                     ],
                 ),
                 iam.PolicyStatement(
@@ -176,15 +188,7 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                         "rds:RestoreDBInstanceFromDBSnapshot",
                     ],
                     resources=[
-                        f"arn:aws:rds:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:subgrp:*"
-                    ],
-                ),
-                iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=["ssm:StartAutomationExecution"],
-                    resources=[
-                        # f"arn:aws:ssm:{core.Aws.REGION}:{core.Aws.ACCOUNT_ID}:automation-definition/*:*",
-                        "*",
+                        f"arn:aws:rds:{Aws.REGION}:{Aws.ACCOUNT_ID}:subgrp:*"
                     ],
                 ),
             ],
@@ -225,6 +229,23 @@ class UnencryptedToEncryptedRdsStack(core.Stack):
                 content=encrypt_rds_content,
                 document_type="Automation",
             )
+
+            # Add scoped SSM automation execution policy after documents are created
+            ssm_automation_policy = iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["ssm:StartAutomationExecution"],
+                resources=[
+                    f"arn:aws:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:automation-definition/{encrypt_rds_ssmdoc.ref}:*",
+                    f"arn:aws:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:automation-definition/{encrypt_rds_instance_ssmdoc.ref}:*",
+                    f"arn:aws:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:automation-definition/{encrypt_rds_cluster_ssmdoc.ref}:*",
+                    # Allow starting AWS-managed automation documents (like AWS-CreateRdsSnapshot)
+                    f"arn:aws:ssm:{Aws.REGION}::automation-definition/*",
+                    # Allow execution on automation-execution resources
+                    f"arn:aws:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:automation-execution/*",
+                ],
+            )
+            automation_role.add_to_policy(ssm_automation_policy)
+
 
             rds_storage_encrypted_config_rule_name = (
                 "rds-storage-encrypted-with-remediation"

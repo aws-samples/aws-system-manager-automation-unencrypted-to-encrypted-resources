@@ -14,7 +14,7 @@
         },
         "EncryptedDBSnapshotIdentifier": {
             "description": "(Optional, default provided) The DBSnapshotIdentifier ID of the Encrypted RDS snapshot to create.",
-            "default": "encrypted-db-instance-snapshot-{{DBInstanceIdentifier}}",
+            "default": "encrypted-db-instance-snapshot-{{DBInstanceIdentifier}}-{{automation:EXECUTION_ID}}",
             "type": "String"
         },
         "kmsKeyId": {

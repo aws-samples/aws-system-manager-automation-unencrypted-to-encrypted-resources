@@ -18,7 +18,7 @@
         },
         "DBClusterSnapshotIdentifier": {
             "description": "(Optional, default provided) The Encrypted DBClusterSnapshotIdentifier ID of the RDS snapshot to create.",
-            "default": "unencrypted-db-cluster-snapshot-{{SourceDBClusterIdentifier}}",
+            "default": "unencrypted-db-cluster-snapshot-{{SourceDBClusterIdentifier}}-{{automation:EXECUTION_ID}}",
             "type": "String"
         },
         "kmsKeyId": {

@@ -1,1 +1,44 @@
 .DS_Store
+
+# Secret files - prevent credential leaks
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# AWS credential files
+.aws/credentials
+.aws/config
+aws-credentials.json
+credentials.json
+
+# CDK context files that may contain sensitive data
+cdk.context.json
+
+# SSH keys
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.ppk
+
+# Certificate files
+*.crt
+*.cer
+*.der
+
+# Additional secret patterns
+secrets.yml
+secrets.yaml
+secrets.json
+.secrets
