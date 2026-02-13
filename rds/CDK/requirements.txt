@@ -1,5 +1,2 @@
-aws-cdk.aws-iam==1.121.0
-aws-cdk.aws-ssm==1.121.0
-aws-cdk.aws-config==1.121.0
-aws-cdk.aws-kms==1.121.0
-aws-cdk.aws-rds==1.121.0
+aws-cdk-lib>=2.0.0
+constructs>=10.0.0,<11.0.0

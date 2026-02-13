@@ -1,12 +1,14 @@
 from aws_cdk import (
     aws_ec2 as ec2,
     aws_rds as rds,
-    core,
+    Stack,
+    RemovalPolicy,
 )
+from constructs import Construct
 
 
-class RDSStack(core.Stack):
-    def __init__(self, app: core.App, id: str, **kwargs) -> None:
+class RDSStack(Stack):
+    def __init__(self, app: Construct, id: str, **kwargs) -> None:
         super().__init__(app, id, **kwargs)
 
         vpc = ec2.Vpc(self, "VPC", max_azs=99)
@@ -24,10 +26,10 @@ class RDSStack(core.Stack):
                 ec2.InstanceClass.MEMORY4,
                 ec2.InstanceSize.LARGE,
             ),
-            removal_policy=core.RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY,
             deletion_protection=False,
             publicly_accessible=False,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE),
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             allocated_storage=10,
         ),
 
@@ -46,8 +48,8 @@ class RDSStack(core.Stack):
                     ec2.InstanceSize.LARGE,
                 ),
                 publicly_accessible=False,
-                vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE),
+                vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             ),
-            removal_policy=core.RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY,
             deletion_protection=False,
         )

@@ -140,12 +140,67 @@
                 "ec2:DescribeSecurityGroups",
                 "ec2:DescribeSubnets",
                 "ec2:DescribeVpcAttribute",
-                "ec2:DescribeVpcs",
-                "rds:AddTagsToResource",
+                "ec2:DescribeVpcs"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "rds:DescribeDBInstances",
+                "rds:DescribeDBClusters",
+                "rds:DescribeDBSnapshots",
+                "rds:DescribeDBClusterSnapshots"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            },
+            {
+              "Action": [
                 "ssm:GetAutomationExecution"
               ],
               "Effect": "Allow",
               "Resource": "*"
+            },
+            {
+              "Action": [
+                "rds:AddTagsToResource"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:rds:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":db:*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:rds:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":cluster:*"
+                    ]
+                  ]
+                }
+              ]
             },
             {
               "Action": [
@@ -379,7 +434,52 @@
             {
               "Action": "ssm:StartAutomationExecution",
               "Effect": "Allow",
-              "Resource": "*"
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:ssm:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":automation-definition/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:ssm:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      "::automation-definition/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:aws:ssm:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":automation-execution/*"
+                    ]
+                  ]
+                }
+              ]
             }
           ],
           "Version": "2012-10-17"
@@ -414,7 +514,7 @@
             },
             "DBClusterSnapshotIdentifier": {
               "description": "(Optional, default provided) The Encrypted DBClusterSnapshotIdentifier ID of the RDS snapshot to create.",
-              "default": "unencrypted-db-cluster-snapshot-{{SourceDBClusterIdentifier}}",
+              "default": "unencrypted-db-cluster-snapshot-{{SourceDBClusterIdentifier}}-{{automation:EXECUTION_ID}}",
               "type": "String"
             },
             "kmsKeyId": {
@@ -571,7 +671,7 @@
             },
             "EncryptedDBSnapshotIdentifier": {
               "description": "(Optional, default provided) The DBSnapshotIdentifier ID of the Encrypted RDS snapshot to create.",
-              "default": "encrypted-db-instance-snapshot-{{DBInstanceIdentifier}}",
+              "default": "encrypted-db-instance-snapshot-{{DBInstanceIdentifier}}-{{automation:EXECUTION_ID}}",
               "type": "String"
             },
             "kmsKeyId": {
