@@ -132,6 +132,8 @@ Resources:
         Version: "2012-10-17"
   EBSEncryptionKey:
     Type: AWS::KMS::Key
+    DeletionPolicy : Retain
+    UpdateReplacePolicy : Retain
     Properties: 
       Description: Key used for encryption EBS volumes
       Enabled: True

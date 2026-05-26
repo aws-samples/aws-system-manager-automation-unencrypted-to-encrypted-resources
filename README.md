@@ -12,6 +12,20 @@ The sample solution can be deployed using the AWS CloudFormation template, which
 
 Once the resources are remediated, ensure preventive enforcement via Service Control Policies to deny EC2 instance and volume creation in the future without encryption.
 
+### Important: KMS Key Deletion Protection (EBS)
+
+The `Stack1.yaml` template includes `DeletionPolicy: Retain` and `UpdateReplacePolicy: Retain` on the KMS key resource (`EBSEncryptionKey`). This ensures the KMS key is **not** scheduled for deletion when the CloudFormation stack is removed or updated.
+
+**Why this matters:** The KMS key created by Stack1 encrypts all EBS volumes processed by the SSM Automation in Stack2. If the key is deleted, all encrypted volumes become permanently unrecoverable after the 30-day KMS pending deletion window. Because the automation deletes the intermediate snapshots, there is no recovery path once the key is gone.
+
+**For non-production environments:** If you need CloudFormation to fully clean up all resources (including the KMS key) when tearing down the stack, you can remove or modify the following properties on the `EBSEncryptionKey` resource in `ebs/CloudFormation/Stack1.yaml`:
+
+```yaml
+# To allow full cleanup on stack delete (non-production only), remove these lines:
+DeletionPolicy: Retain
+UpdateReplacePolicy: Retain
+```
+
 ## Automatically remediate unencrypted RDS Instances and Clusters using customer KMS keys
 
 This [sample](rds) describes how to automatically remediate unencrypted Amazon RDS Instances and Clusters. Amazon RDS encrypted DB instances provide an additional layer of data protection by securing your data from unauthorized access to the underlying storage. You can use Amazon RDS encryption to increase data protection of your applications deployed in the cloud, and to fulfill compliance requirements for encryption at rest.
